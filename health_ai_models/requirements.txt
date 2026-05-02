@@ -14,5 +14,3 @@ torchvision
 Pillow
 google-generativeai
 openai
-gspread
-google-auth

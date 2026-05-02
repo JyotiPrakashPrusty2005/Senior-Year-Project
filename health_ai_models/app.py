@@ -341,27 +341,22 @@ def risk_badge(level: str) -> str:
 FEEDBACK_FILE = os.path.join(BASE_DIR, "feedback.csv")
 
 
-def _save_to_gsheet(row: dict):
-    """Save feedback to Google Sheets (for cloud deployment)."""
-    import gspread
-    from google.oauth2.service_account import Credentials
-
-    creds_dict = dict(st.secrets["gcp_service_account"])
-    creds = Credentials.from_service_account_info(
-        creds_dict,
-        scopes=["https://www.googleapis.com/auth/spreadsheets"],
-    )
-    client = gspread.authorize(creds)
-    sheet = client.open_by_key(st.secrets["spreadsheet_id"]).sheet1
-
-    # Add header if sheet is empty
-    if not sheet.get_all_values():
-        sheet.append_row(list(row.keys()))
-    sheet.append_row(list(row.values()))
+def _save_to_gform(name: str, module: str, rating: int, comment: str):
+    """Submit feedback to Google Form."""
+    import urllib.request
+    import urllib.parse
+    url = "https://docs.google.com/forms/d/e/1FAIpQLSdAqpFQ4IJixiqVtvOu736UXDSjz8HhbadWKMPxlwJV9g5FUQ/formResponse"
+    data = urllib.parse.urlencode({
+        "entry.394022119": name,
+        "entry.1527822000": module,
+        "entry.366398792": str(rating),
+        "entry.1702456842": comment,
+    }).encode("utf-8")
+    urllib.request.urlopen(url, data, timeout=10)
 
 
 def save_feedback(module: str, patient_name: str, rating: int, comment: str):
-    """Save feedback to Google Sheets (cloud) or CSV (local)."""
+    """Save feedback to Google Form + local CSV."""
     fieldnames = ["module", "patient_name", "rating", "comment", "date", "time"]
     row = {
         "module": module,
@@ -372,21 +367,22 @@ def save_feedback(module: str, patient_name: str, rating: int, comment: str):
         "time": datetime.now().strftime("%H:%M:%S"),
     }
 
-    # Try Google Sheets first (for cloud), fall back to CSV (for local)
+    # Submit to Google Form
     try:
-        if hasattr(st, "secrets") and "gcp_service_account" in st.secrets:
-            _save_to_gsheet(row)
-            return
+        _save_to_gform(patient_name, module, rating, comment)
     except Exception:
         pass
 
-    # Fallback: local CSV
-    write_header = not os.path.exists(FEEDBACK_FILE)
-    with open(FEEDBACK_FILE, "a", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
-        if write_header:
-            writer.writeheader()
-        writer.writerow(row)
+    # Also save locally as backup
+    try:
+        write_header = not os.path.exists(FEEDBACK_FILE)
+        with open(FEEDBACK_FILE, "a", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            if write_header:
+                writer.writeheader()
+            writer.writerow(row)
+    except Exception:
+        pass
 
 
 # ═══════════════════════════════════════════════════════════════════════════
