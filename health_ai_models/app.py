@@ -341,8 +341,27 @@ def risk_badge(level: str) -> str:
 FEEDBACK_FILE = os.path.join(BASE_DIR, "feedback.csv")
 
 
+def _save_to_gsheet(row: dict):
+    """Save feedback to Google Sheets (for cloud deployment)."""
+    import gspread
+    from google.oauth2.service_account import Credentials
+
+    creds_dict = dict(st.secrets["gcp_service_account"])
+    creds = Credentials.from_service_account_info(
+        creds_dict,
+        scopes=["https://www.googleapis.com/auth/spreadsheets"],
+    )
+    client = gspread.authorize(creds)
+    sheet = client.open_by_key(st.secrets["spreadsheet_id"]).sheet1
+
+    # Add header if sheet is empty
+    if not sheet.get_all_values():
+        sheet.append_row(list(row.keys()))
+    sheet.append_row(list(row.values()))
+
+
 def save_feedback(module: str, patient_name: str, rating: int, comment: str):
-    """Save feedback entry to CSV file."""
+    """Save feedback to Google Sheets (cloud) or CSV (local)."""
     fieldnames = ["module", "patient_name", "rating", "comment", "date", "time"]
     row = {
         "module": module,
@@ -352,6 +371,16 @@ def save_feedback(module: str, patient_name: str, rating: int, comment: str):
         "date": datetime.now().strftime("%Y-%m-%d"),
         "time": datetime.now().strftime("%H:%M:%S"),
     }
+
+    # Try Google Sheets first (for cloud), fall back to CSV (for local)
+    try:
+        if hasattr(st, "secrets") and "gcp_service_account" in st.secrets:
+            _save_to_gsheet(row)
+            return
+    except Exception:
+        pass
+
+    # Fallback: local CSV
     write_header = not os.path.exists(FEEDBACK_FILE)
     with open(FEEDBACK_FILE, "a", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
