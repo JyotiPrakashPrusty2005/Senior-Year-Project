@@ -24,10 +24,10 @@ MODEL_NAME = checkpoint["model_name"]
 # Rebuild the same architecture
 if "ResNet-18" in MODEL_NAME:
     model = models.resnet18(weights=None)
-    model.fc = nn.Linear(model.fc.in_features, len(CLASS_NAMES))
+    model.fc = nn.Sequential(nn.Dropout(0.3), nn.Linear(model.fc.in_features, len(CLASS_NAMES)))
 elif "ResNet-50" in MODEL_NAME:
     model = models.resnet50(weights=None)
-    model.fc = nn.Linear(model.fc.in_features, len(CLASS_NAMES))
+    model.fc = nn.Sequential(nn.Dropout(0.3), nn.Linear(model.fc.in_features, len(CLASS_NAMES)))
 elif "EfficientNet" in MODEL_NAME:
     model = models.efficientnet_b0(weights=None)
     model.classifier[1] = nn.Linear(model.classifier[1].in_features, len(CLASS_NAMES))

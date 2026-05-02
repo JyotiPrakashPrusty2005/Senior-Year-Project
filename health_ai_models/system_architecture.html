@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>System Architecture - Agentic AI Health Coach</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Arial, sans-serif; max-width: 1200px; margin: 0 auto; padding: 20px; background: #fff; }
+        h1 { text-align: center; color: #333; border-bottom: 3px solid #2196F3; padding-bottom: 10px; }
+        h2 { color: #444; margin-top: 40px; }
+        .diagram-container { background: #fafafa; border: 1px solid #ddd; border-radius: 8px; padding: 20px; margin: 20px 0; }
+        .note { background: #fff3cd; border-left: 4px solid #ffc107; padding: 12px 16px; margin: 16px 0; border-radius: 4px; }
+        @media print { body { padding: 0; } .diagram-container { break-inside: avoid; } }
+    </style>
+</head>
+<body>
+    <h1>Agentic AI Health Coach — System Architecture</h1>
+    <p style="text-align:center; color:#666;">Early Disease Risk Prediction & Post-Surgery Recovery Assistant<br>using Hybrid ML, LSTM and Generative AI</p>
+
+    <h2>1. High-Level System Architecture</h2>
+    <div class="diagram-container">
+        <pre class="mermaid">
+flowchart TB
+    subgraph Frontend["🖥️ Frontend - Streamlit"]
+        LP[Landing Page]
+        LP -->|Option 1| DP[Disease Prediction]
+        LP -->|Option 2| PSR[Post-Surgery Recovery]
+        
+        subgraph DiseaseFlow["Disease Prediction Flow"]
+            DP --> UF[Universal Health Form]
+            UF --> IC[Intent Classifier]
+            IC -->|Diabetes indicators| DM[Diabetes Model]
+            IC -->|Cardio vitals| CM[Cardiovascular Model]
+            IC -->|X-ray uploaded| PM[Pneumonia Model]
+            DM --> DR[Risk Report + Advice]
+            CM --> DR
+            PM --> DR
+        end
+
+        subgraph RecoveryFlow["Post-Surgery Recovery Flow"]
+            PSR --> RF1[Patient Profile Form]
+            RF1 --> RF2[Daily Vitals Form]
+            RF2 --> DB[(Patient History DB)]
+            DB -->|7-day window| LSTM[LSTM Model Inference]
+            LSTM --> GenAI[Gemini / GPT Coach]
+            GenAI --> RR[Recovery Plan + Alerts]
+        end
+    end
+
+    subgraph Backend["⚙️ Backend - FastAPI"]
+        API[FastAPI Server]
+        API --> Auth[Auth Middleware]
+        Auth --> Routes
+
+        subgraph Routes["API Routes"]
+            R1["POST /predict/disease"]
+            R2["POST /predict/recovery"]
+            R3["POST /patient/vitals"]
+            R4["GET /patient/history"]
+        end
+
+        subgraph MLModels["ML Models Layer"]
+            PDiab[predict_diabetes.py]
+            PCard[predict_cardio.py]
+            PPneu[predict_pneumonia.py]
+            PReco[predict_recovery.py]
+            Coach[recovery_coach.py]
+        end
+
+        subgraph Storage["Data Layer"]
+            Models[(Saved Models .pkl + .pth)]
+            PDB[(Patient Database SQLite)]
+        end
+        
+        Routes --> MLModels
+        MLModels --> Storage
+        PReco --> Coach
+    end
+
+    Frontend --> API
+
+    style LP fill:#4CAF50,color:#fff
+    style IC fill:#FF9800,color:#fff
+    style LSTM fill:#2196F3,color:#fff
+    style GenAI fill:#9C27B0,color:#fff
+    style API fill:#F44336,color:#fff
+        </pre>
+    </div>
+
+    <h2>2. Detailed Request Flow</h2>
+    <div class="diagram-container">
+        <pre class="mermaid">
+sequenceDiagram
+    actor P as Patient
+    participant FE as Frontend
+    participant API as FastAPI
+    participant IC as Intent Classifier
+    participant ML as ML Models
+    participant LSTM as LSTM Model
+    participant AI as Gemini/GPT
+    participant DB as Database
+
+    Note over P,DB: FLOW 1 - DISEASE PREDICTION
+    P->>FE: Selects Disease Prediction
+    FE->>P: Shows health form
+    P->>FE: Fills form + optionally uploads X-ray
+    FE->>API: POST /predict/disease
+    API->>IC: Classify intent from input fields
+    
+    alt Has X-ray image
+        IC->>ML: Route to Pneumonia Model
+    else Has BP, cholesterol, glucose
+        IC->>ML: Route to Cardiovascular Model
+    else Has 21 BRFSS indicators
+        IC->>ML: Route to Diabetes Model
+    end
+    
+    ML-->>API: prediction, probability, risk_level
+    API-->>FE: JSON response
+    FE-->>P: Risk Report with advice
+
+    Note over P,DB: FLOW 2 - POST-SURGERY RECOVERY
+    P->>FE: Selects Recovery Assistant
+    FE->>P: Shows profile form - one time
+    P->>FE: Fills profile
+    FE->>API: POST /patient/register
+    API->>DB: Store patient profile
+    
+    loop Every Day - Day 1 to 30
+        P->>FE: Enters daily vitals
+        FE->>API: POST /patient/vitals
+        API->>DB: Store vitals
+        
+        alt Has 7+ days of data
+            API->>DB: Fetch last 7 days
+            DB-->>API: vitals_history
+            API->>LSTM: predict with 7-day window
+            LSTM-->>API: forecast + complication risk
+            API->>AI: Generate advice
+            AI-->>API: Personalized recovery plan
+            API-->>FE: Full recovery report
+            FE-->>P: Daily recovery plan + alerts
+        else Less than 7 days
+            API-->>FE: Generic guidelines only
+            FE-->>P: Basic recovery tips
+        end
+    end
+        </pre>
+    </div>
+
+    <h2>3. Intent Classifier Logic</h2>
+    <div class="diagram-container">
+        <pre class="mermaid">
+flowchart LR
+    INPUT[Form Input] --> CHECK{What fields are present?}
+    CHECK -->|X-ray image uploaded| PNEUMONIA[Pneumonia Model<br/>CNN - ResNet/EfficientNet]
+    CHECK -->|ap_hi, ap_lo, cholesterol,<br/>glucose, height, weight| CARDIO[Cardiovascular Model<br/>XGBoost/LightGBM]
+    CHECK -->|HighBP, HighChol, BMI,<br/>21 BRFSS indicators| DIABETES[Diabetes Model<br/>XGBoost/LightGBM]
+    CHECK -->|No match| ERROR[Error: Insufficient data]
+
+    PNEUMONIA --> OUT[Standardized JSON Response]
+    CARDIO --> OUT
+    DIABETES --> OUT
+    
+    style CHECK fill:#FF9800,color:#fff
+    style PNEUMONIA fill:#E91E63,color:#fff
+    style CARDIO fill:#F44336,color:#fff
+    style DIABETES fill:#9C27B0,color:#fff
+    style OUT fill:#4CAF50,color:#fff
+        </pre>
+    </div>
+
+    <h2>4. LSTM + Generative AI Pipeline</h2>
+    <div class="diagram-container">
+        <pre class="mermaid">
+flowchart LR
+    subgraph Input["📥 Input"]
+        V[7 Days of Vitals<br/>pain, temp, HR, BP,<br/>mobility, wound, sleep]
+        S[Static Features<br/>age, gender, BMI,<br/>diabetes, hypertension,<br/>smoking, surgery type]
+    end
+
+    subgraph LSTM["🧠 Hybrid LSTM Model"]
+        L[LSTM Encoder<br/>2-layer, hidden=128]
+        D[Dense Encoder<br/>7→64→32]
+        C[Combined Features<br/>128 + 32 = 160]
+        L --> C
+        D --> C
+        C --> H1[Recovery Head<br/>160→64→3]
+        C --> H2[Complication Head<br/>160→64→1→Sigmoid]
+    end
+
+    subgraph Output["📤 Predictions"]
+        F[3-Day Recovery<br/>Score Forecast]
+        R[Complication<br/>Risk 0-100%]
+    end
+
+    subgraph GenAI["🤖 Generative AI Coach"]
+        P[Build Prompt<br/>patient context +<br/>predictions +<br/>medical guidelines]
+        G[Gemini 2.0 Flash]
+        A[Personalized<br/>Recovery Plan]
+        P --> G --> A
+    end
+
+    V --> L
+    S --> D
+    H1 --> F
+    H2 --> R
+    F --> P
+    R --> P
+
+    style L fill:#2196F3,color:#fff
+    style D fill:#03A9F4,color:#fff
+    style G fill:#9C27B0,color:#fff
+    style A fill:#4CAF50,color:#fff
+        </pre>
+    </div>
+
+    <h2>5. Tech Stack</h2>
+    <div class="diagram-container">
+        <pre class="mermaid">
+block-beta
+    columns 3
+    block:frontend:1
+        columns 1
+        F["🖥️ Frontend"]
+        Streamlit
+        Forms
+        Charts
+    end
+    block:backend:1
+        columns 1
+        B["⚙️ Backend"]
+        FastAPI
+        Pydantic
+        SQLite
+    end
+    block:ml:1
+        columns 1
+        M["🧠 ML/AI"]
+        PyTorch
+        ScikitLearn
+        Gemini
+    end
+
+    style F fill:#4CAF50,color:#fff
+    style B fill:#F44336,color:#fff
+    style M fill:#2196F3,color:#fff
+        </pre>
+    </div>
+
+    <div class="note">
+        <strong>How to save:</strong> Open this file in your browser → Press <strong>Ctrl + P</strong> → Select <strong>"Save as PDF"</strong>
+    </div>
+
+    <script>mermaid.initialize({startOnLoad: true, theme: 'default', securityLevel: 'loose'});</script>
+</body>
+</html>

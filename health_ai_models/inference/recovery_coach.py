@@ -17,9 +17,9 @@ import os
 import json
 from datetime import datetime
 
-# Try importing google generative AI (Gemini) — free tier available
+# Try importing google generative AI (Gemini) — new google.genai package
 try:
-    import google.generativeai as genai
+    from google import genai
     GENAI_AVAILABLE = True
 except ImportError:
     GENAI_AVAILABLE = False
@@ -173,10 +173,9 @@ AI MODEL PREDICTIONS:
 def generate_recovery_advice_gemini(patient_data, lstm_predictions, api_key):
     """Generate personalized recovery advice using Google Gemini."""
     if not GENAI_AVAILABLE:
-        raise ImportError("google-generativeai package not installed. Run: pip install google-generativeai")
+        raise ImportError("google-genai package not installed. Run: pip install google-genai")
 
-    genai.configure(api_key=api_key)
-    model = genai.GenerativeModel("gemini-2.0-flash")
+    client = genai.Client(api_key=api_key)
 
     system_prompt = build_system_prompt(patient_data["surgery_type"])
     patient_context = build_patient_context(patient_data, lstm_predictions)
@@ -188,7 +187,10 @@ def generate_recovery_advice_gemini(patient_data, lstm_predictions, api_key):
 Based on the patient's current vitals, recovery progress, and the AI model's predictions, 
 provide a comprehensive personalized recovery plan for today."""
 
-    response = model.generate_content(prompt)
+    response = client.models.generate_content(
+        model="gemini-2.0-flash",
+        contents=prompt,
+    )
     return response.text
 
 
@@ -342,34 +344,30 @@ def format_advice_as_text(advice):
         return advice  # Already formatted (from API)
 
     lines = []
-    lines.append("=" * 60)
-    lines.append("🏥 POST-SURGERY RECOVERY COACH — DAILY PLAN")
-    lines.append("=" * 60)
+    lines.append("### 🏥 Post-Surgery Recovery Coach — Daily Plan")
 
-    lines.append(f"\n📊 RECOVERY ASSESSMENT:\n{advice['recovery_assessment']}")
+    lines.append(f"\n**📊 Recovery Assessment:**\n{advice['recovery_assessment']}")
 
     if advice.get("alert_doctor"):
-        lines.append("\n🚨 ALERT: Please contact your healthcare provider today.")
+        lines.append("\n🚨 **ALERT:** Please contact your healthcare provider today.")
 
-    lines.append("\n📋 TODAY'S RECOMMENDATIONS:")
+    lines.append("\n**📋 Today's Recommendations:**")
     for rec in advice["todays_recommendations"]:
-        lines.append(f"  • {rec}")
+        lines.append(f"- {rec}")
 
-    lines.append("\n🏃 EXERCISE PLAN:")
+    lines.append("\n**🏃 Exercise Plan:**")
     for ex in advice["exercise_plan"]:
-        lines.append(f"  • {ex}")
+        lines.append(f"- {ex}")
 
-    lines.append(f"\n🥗 DIETARY ADVICE:\n  {advice['dietary_advice']}")
+    lines.append(f"\n**🥗 Dietary Advice:**\n{advice['dietary_advice']}")
 
-    lines.append("\n⚠️ WATCH FOR THESE WARNING SIGNS:")
+    lines.append("\n**⚠️ Watch for These Warning Signs:**")
     for sign in advice["warning_signs"]:
-        lines.append(f"  • {sign}")
+        lines.append(f"- {sign}")
 
     lines.append(f"\n💪 {advice['motivation']}")
-    lines.append("\n" + "=" * 60)
-    lines.append("⚕️ Disclaimer: This is AI-generated guidance. Always follow")
-    lines.append("   your doctor's specific instructions for your recovery.")
-    lines.append("=" * 60)
+    lines.append("\n---")
+    lines.append("<small>⚕️ Disclaimer: This is AI-generated guidance. Always follow your doctor's specific instructions for your recovery.</small>")
 
     return "\n".join(lines)
 
