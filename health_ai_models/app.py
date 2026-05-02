@@ -999,13 +999,16 @@ elif page == "📝 Feedback":
     </div>
     """, unsafe_allow_html=True)
 
-    # Google Form embed - replace FORM_ID with your actual Google Form ID
-    GOOGLE_FORM_URL = "https://docs.google.com/forms/d/e/1FAIpQLSdAqpFQ4IJixiqVtvOu736UXDSjz8HhbadWKMPxlwJV9g5FUQ/viewform?embedded=true"
+    with st.form("feedback_page_form"):
+        fb_name = st.text_input("👤 Your Name", placeholder="Enter your name")
+        fb_module = st.selectbox("📚 Module", ["Cardiovascular", "Diabetes", "Pneumonia", "Recovery"])
+        fb_rating = st.slider("⭐ Rating (1-10)", 1, 10, 8)
+        fb_comment = st.text_area("💬 Comments", placeholder="Share your suggestions...")
+        fb_submitted = st.form_submit_button("Submit Feedback", width="stretch")
 
-    st.markdown(
-        f'<iframe src="{GOOGLE_FORM_URL}" width="100%" height="900" '
-        f'frameborder="0" marginheight="0" marginwidth="0" '
-        f'style="border-radius: 12px; background: transparent;">'
-        f'Loading…</iframe>',
-        unsafe_allow_html=True,
-    )
+    if fb_submitted:
+        if fb_name.strip():
+            save_feedback(fb_module, fb_name.strip(), fb_rating, fb_comment)
+            st.success("✅ Feedback submitted! Thank you.")
+        else:
+            st.warning("Please enter your name.")
