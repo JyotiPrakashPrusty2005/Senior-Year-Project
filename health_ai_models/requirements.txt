@@ -12,5 +12,6 @@ pydantic
 torch
 torchvision
 Pillow
-google-generativeai
+google-genai
 openai
+groq

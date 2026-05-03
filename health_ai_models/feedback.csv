@@ -2,3 +2,8 @@ module,patient_name,rating,comment,date,time
 Cardiovascular,Jyoti,4,It was good,2026-05-02,11:23:25
 Diabetes,jyoti,4,good,2026-05-02,11:25:33
 Pneumonia,Jyoti,3,Good,2026-05-02,11:29:06
+Cardiovascular,Jyoti,8,Good,2026-05-02,14:36:23
+Cardiovascular,Jyoti,8,good,2026-05-02,14:43:04
+Cardiovascular,Jyoti,8,good,2026-05-02,15:02:45
+Cardiovascular,Jyoti,2,good,2026-05-02,15:02:54
+Recovery,Demo Patient,5,good,2026-05-03,12:25:15

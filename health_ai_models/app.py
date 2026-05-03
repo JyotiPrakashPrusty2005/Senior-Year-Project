@@ -905,7 +905,8 @@ elif page == "🏥 Recovery Assistant":
         else:
             # Optional API key
             with st.expander("🔑 AI Coach API Key (optional)"):
-                api_provider = st.selectbox("Provider", ["offline", "gemini", "openai"])
+                api_provider = st.selectbox("Provider", ["offline", "gemini", "groq", "openai"],
+                                            help="Groq is free with generous limits. Get key at https://console.groq.com/keys")
                 api_key = st.text_input("API Key", type="password",
                                         help="Leave empty for offline rule-based coach")
 
@@ -917,6 +918,8 @@ elif page == "🏥 Recovery Assistant":
                             os.environ["GEMINI_API_KEY"] = api_key
                         elif api_key and api_provider == "openai":
                             os.environ["OPENAI_API_KEY"] = api_key
+                        elif api_key and api_provider == "groq":
+                            os.environ["GROQ_API_KEY"] = api_key
 
                         from inference.predict_recovery import predict_recovery
                         result = predict_recovery(
@@ -927,6 +930,7 @@ elif page == "🏥 Recovery Assistant":
                         # Clean up env vars
                         os.environ.pop("GEMINI_API_KEY", None)
                         os.environ.pop("OPENAI_API_KEY", None)
+                        os.environ.pop("GROQ_API_KEY", None)
 
                         st.session_state.recovery_result = result
 

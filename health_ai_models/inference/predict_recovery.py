@@ -132,8 +132,15 @@ def predict_recovery(vitals_history, patient_info, model=None, vitals_scaler=Non
     }
 
     # Generate advice using the recovery coach
-    api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("OPENAI_API_KEY")
-    provider = "gemini" if os.environ.get("GEMINI_API_KEY") else "openai" if os.environ.get("OPENAI_API_KEY") else "offline"
+    api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("OPENAI_API_KEY") or os.environ.get("GROQ_API_KEY")
+    if os.environ.get("GEMINI_API_KEY"):
+        provider = "gemini"
+    elif os.environ.get("OPENAI_API_KEY"):
+        provider = "openai"
+    elif os.environ.get("GROQ_API_KEY"):
+        provider = "groq"
+    else:
+        provider = "offline"
 
     advice = get_recovery_advice(patient_data, lstm_predictions, api_key=api_key, provider=provider)
 

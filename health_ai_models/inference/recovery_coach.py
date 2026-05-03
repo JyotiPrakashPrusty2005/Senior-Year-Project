@@ -17,7 +17,7 @@ import os
 import json
 from datetime import datetime
 
-# Try importing google generative AI (Gemini) — new google.genai package
+# Try importing google genai (Gemini) — new package
 try:
     from google import genai
     GENAI_AVAILABLE = True
@@ -30,6 +30,13 @@ try:
     OPENAI_AVAILABLE = True
 except ImportError:
     OPENAI_AVAILABLE = False
+
+# Try importing groq
+try:
+    from groq import Groq
+    GROQ_AVAILABLE = True
+except ImportError:
+    GROQ_AVAILABLE = False
 
 
 # ─── Recovery Knowledge Base ──────────────────────────────────────────────
@@ -175,7 +182,12 @@ def generate_recovery_advice_gemini(patient_data, lstm_predictions, api_key):
     if not GENAI_AVAILABLE:
         raise ImportError("google-genai package not installed. Run: pip install google-genai")
 
-    client = genai.Client(api_key=api_key)
+    import httpx
+    client = genai.Client(
+        api_key=api_key,
+        http_options={"api_version": "v1"},
+        httpx_client=httpx.Client(verify=False),
+    )
 
     system_prompt = build_system_prompt(patient_data["surgery_type"])
     patient_context = build_patient_context(patient_data, lstm_predictions)
@@ -187,11 +199,25 @@ def generate_recovery_advice_gemini(patient_data, lstm_predictions, api_key):
 Based on the patient's current vitals, recovery progress, and the AI model's predictions, 
 provide a comprehensive personalized recovery plan for today."""
 
-    response = client.models.generate_content(
-        model="gemini-2.0-flash",
-        contents=prompt,
-    )
-    return response.text
+    # Try multiple models in case one is unavailable or has quota issues
+    models_to_try = ["gemini-2.0-flash", "gemini-2.0-flash-lite"]
+    last_error = None
+    for model_name in models_to_try:
+        try:
+            response = client.models.generate_content(
+                model=model_name,
+                contents=prompt,
+            )
+            return response.text
+        except Exception as e:
+            last_error = e
+            error_str = str(e)
+            # Retry on quota errors or model-not-found errors
+            if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str or "404" in error_str or "not found" in error_str.lower():
+                continue
+            raise  # Other errors, don't retry
+
+    raise last_error
 
 
 def generate_recovery_advice_openai(patient_data, lstm_predictions, api_key):
@@ -206,6 +232,29 @@ def generate_recovery_advice_openai(patient_data, lstm_predictions, api_key):
 
     response = client.chat.completions.create(
         model="gpt-3.5-turbo",
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": f"{patient_context}\n\nProvide a comprehensive personalized recovery plan for today."},
+        ],
+        max_tokens=1000,
+        temperature=0.7,
+    )
+    return response.choices[0].message.content
+
+
+def generate_recovery_advice_groq(patient_data, lstm_predictions, api_key):
+    """Generate personalized recovery advice using Groq (free, fast inference)."""
+    if not GROQ_AVAILABLE:
+        raise ImportError("groq package not installed. Run: pip install groq")
+
+    import httpx
+    client = Groq(api_key=api_key, http_client=httpx.Client(verify=False))
+
+    system_prompt = build_system_prompt(patient_data["surgery_type"])
+    patient_context = build_patient_context(patient_data, lstm_predictions)
+
+    response = client.chat.completions.create(
+        model="llama-3.3-70b-versatile",
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": f"{patient_context}\n\nProvide a comprehensive personalized recovery plan for today."},
@@ -379,8 +428,8 @@ def get_recovery_advice(patient_data, lstm_predictions, api_key=None, provider="
     Args:
         patient_data: Dict with patient demographics and today's vitals
         lstm_predictions: Dict with LSTM model predictions
-        api_key: Optional API key for Gemini/OpenAI
-        provider: "gemini", "openai", or "offline"
+        api_key: Optional API key for Gemini/OpenAI/Groq
+        provider: "gemini", "openai", "groq", or "offline"
 
     Returns:
         Formatted recovery advice string
@@ -396,6 +445,12 @@ def get_recovery_advice(patient_data, lstm_predictions, api_key=None, provider="
             return generate_recovery_advice_openai(patient_data, lstm_predictions, api_key)
         except Exception as e:
             print(f"OpenAI API error: {e}. Falling back to offline mode.")
+
+    if api_key and provider == "groq":
+        try:
+            return generate_recovery_advice_groq(patient_data, lstm_predictions, api_key)
+        except Exception as e:
+            print(f"Groq API error: {e}. Falling back to offline mode.")
 
     # Offline fallback with rule-based system
     advice = generate_recovery_advice_offline(patient_data, lstm_predictions)
