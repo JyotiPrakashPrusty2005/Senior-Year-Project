@@ -253,16 +253,28 @@ def generate_recovery_advice_groq(patient_data, lstm_predictions, api_key):
     system_prompt = build_system_prompt(patient_data["surgery_type"])
     patient_context = build_patient_context(patient_data, lstm_predictions)
 
-    response = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": f"{patient_context}\n\nProvide a comprehensive personalized recovery plan for today."},
-        ],
-        max_tokens=1000,
-        temperature=0.7,
-    )
-    return response.choices[0].message.content
+    # Try multiple models in case one is unavailable
+    models_to_try = ["llama-3.3-70b-versatile", "llama3-70b-8192", "mixtral-8x7b-32768"]
+    last_error = None
+    for model_name in models_to_try:
+        try:
+            response = client.chat.completions.create(
+                model=model_name,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": f"{patient_context}\n\nProvide a comprehensive personalized recovery plan for today."},
+                ],
+                max_tokens=1000,
+                temperature=0.7,
+            )
+            return response.choices[0].message.content
+        except Exception as e:
+            last_error = e
+            error_str = str(e)
+            if "model" in error_str.lower() or "not found" in error_str.lower() or "404" in error_str:
+                continue
+            raise
+    raise last_error
 
 
 def generate_recovery_advice_offline(patient_data, lstm_predictions):
@@ -434,27 +446,34 @@ def get_recovery_advice(patient_data, lstm_predictions, api_key=None, provider="
     Returns:
         Formatted recovery advice string
     """
+    error_msg = None
+
     if api_key and provider == "gemini":
         try:
             advice = generate_recovery_advice_gemini(patient_data, lstm_predictions, api_key)
             return f"*🤖 Powered by Gemini AI*\n\n{advice}"
         except Exception as e:
-            print(f"Gemini API error: {e}. Falling back to offline mode.")
+            error_msg = f"Gemini API error: {e}"
 
     if api_key and provider == "openai":
         try:
             advice = generate_recovery_advice_openai(patient_data, lstm_predictions, api_key)
             return f"*🤖 Powered by OpenAI*\n\n{advice}"
         except Exception as e:
-            print(f"OpenAI API error: {e}. Falling back to offline mode.")
+            error_msg = f"OpenAI API error: {e}"
 
     if api_key and provider == "groq":
         try:
             advice = generate_recovery_advice_groq(patient_data, lstm_predictions, api_key)
             return f"*🤖 Powered by Groq (Llama 3.3)*\n\n{advice}"
         except Exception as e:
-            print(f"Groq API error: {e}. Falling back to offline mode.")
+            error_msg = f"Groq API error: {e}"
 
     # Offline fallback with rule-based system
     advice = generate_recovery_advice_offline(patient_data, lstm_predictions)
-    return format_advice_as_text(advice)
+    fallback_text = format_advice_as_text(advice)
+
+    if error_msg:
+        fallback_text = f"⚠️ **{error_msg}**\n\n*Showing offline rule-based advice instead:*\n\n{fallback_text}"
+
+    return fallback_text
