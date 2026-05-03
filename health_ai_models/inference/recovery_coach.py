@@ -436,19 +436,22 @@ def get_recovery_advice(patient_data, lstm_predictions, api_key=None, provider="
     """
     if api_key and provider == "gemini":
         try:
-            return generate_recovery_advice_gemini(patient_data, lstm_predictions, api_key)
+            advice = generate_recovery_advice_gemini(patient_data, lstm_predictions, api_key)
+            return f"*🤖 Powered by Gemini AI*\n\n{advice}"
         except Exception as e:
             print(f"Gemini API error: {e}. Falling back to offline mode.")
 
     if api_key and provider == "openai":
         try:
-            return generate_recovery_advice_openai(patient_data, lstm_predictions, api_key)
+            advice = generate_recovery_advice_openai(patient_data, lstm_predictions, api_key)
+            return f"*🤖 Powered by OpenAI*\n\n{advice}"
         except Exception as e:
             print(f"OpenAI API error: {e}. Falling back to offline mode.")
 
     if api_key and provider == "groq":
         try:
-            return generate_recovery_advice_groq(patient_data, lstm_predictions, api_key)
+            advice = generate_recovery_advice_groq(patient_data, lstm_predictions, api_key)
+            return f"*🤖 Powered by Groq (Llama 3.3)*\n\n{advice}"
         except Exception as e:
             print(f"Groq API error: {e}. Falling back to offline mode.")
 

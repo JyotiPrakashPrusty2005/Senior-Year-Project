@@ -913,24 +913,13 @@ elif page == "🏥 Recovery Assistant":
             if st.button("🚀 Generate Recovery Plan", width="stretch"):
                 with st.spinner("Running LSTM model and generating recovery plan..."):
                     try:
-                        # Set env vars for the coach if provided
-                        if api_key and api_provider == "gemini":
-                            os.environ["GEMINI_API_KEY"] = api_key
-                        elif api_key and api_provider == "openai":
-                            os.environ["OPENAI_API_KEY"] = api_key
-                        elif api_key and api_provider == "groq":
-                            os.environ["GROQ_API_KEY"] = api_key
-
                         from inference.predict_recovery import predict_recovery
                         result = predict_recovery(
                             st.session_state.recovery_vitals,
                             st.session_state.recovery_patient,
+                            api_key=api_key if api_provider != "offline" else None,
+                            provider=api_provider,
                         )
-
-                        # Clean up env vars
-                        os.environ.pop("GEMINI_API_KEY", None)
-                        os.environ.pop("OPENAI_API_KEY", None)
-                        os.environ.pop("GROQ_API_KEY", None)
 
                         st.session_state.recovery_result = result
 

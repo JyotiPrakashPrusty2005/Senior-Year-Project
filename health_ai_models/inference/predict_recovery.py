@@ -51,7 +51,8 @@ def load_recovery_model():
 
 
 def predict_recovery(vitals_history, patient_info, model=None, vitals_scaler=None,
-                     static_scaler=None, surgery_encoder=None, config=None):
+                     static_scaler=None, surgery_encoder=None, config=None,
+                     api_key=None, provider="offline"):
     """
     Predict recovery trajectory and complication risk.
 
@@ -62,6 +63,8 @@ def predict_recovery(vitals_history, patient_info, model=None, vitals_scaler=Non
         patient_info: Dict with patient demographics:
                      {"age": 55, "gender": 1, "bmi": 28.0, "diabetes": 0,
                       "hypertension": 1, "smoking": 0, "surgery_type": "cardiac"}
+        api_key: Optional API key for AI coach (Gemini/OpenAI/Groq)
+        provider: "gemini", "openai", "groq", or "offline"
 
     Returns:
         Dict with predictions and formatted advice
@@ -132,17 +135,19 @@ def predict_recovery(vitals_history, patient_info, model=None, vitals_scaler=Non
     }
 
     # Generate advice using the recovery coach
-    api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("OPENAI_API_KEY") or os.environ.get("GROQ_API_KEY")
-    if os.environ.get("GEMINI_API_KEY"):
-        provider = "gemini"
-    elif os.environ.get("OPENAI_API_KEY"):
-        provider = "openai"
-    elif os.environ.get("GROQ_API_KEY"):
-        provider = "groq"
-    else:
-        provider = "offline"
+    # Use directly passed api_key/provider, fall back to env vars for CLI usage
+    _api_key = api_key or os.environ.get("GEMINI_API_KEY") or os.environ.get("OPENAI_API_KEY") or os.environ.get("GROQ_API_KEY")
+    if not api_key and not provider:
+        if os.environ.get("GEMINI_API_KEY"):
+            provider = "gemini"
+        elif os.environ.get("OPENAI_API_KEY"):
+            provider = "openai"
+        elif os.environ.get("GROQ_API_KEY"):
+            provider = "groq"
+        else:
+            provider = "offline"
 
-    advice = get_recovery_advice(patient_data, lstm_predictions, api_key=api_key, provider=provider)
+    advice = get_recovery_advice(patient_data, lstm_predictions, api_key=_api_key, provider=provider)
 
     return {
         "predictions": lstm_predictions,
