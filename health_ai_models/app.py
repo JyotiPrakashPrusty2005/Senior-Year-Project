@@ -304,8 +304,12 @@ st.markdown("<style>" + bg_css + """
 # Session state for page navigation
 if "nav_page" not in st.session_state:
     st.session_state.nav_page = "🏠 Home"
+NAV_OPTIONS = ["🏠 Home", "🧠 Agentic AI", "🫀 Cardiovascular", "🩸 Diabetes", "🫁 Pneumonia", "🏥 Recovery Assistant", "📝 Feedback"]
 
-NAV_OPTIONS = ["🏠 Home", "🫀 Cardiovascular", "🩸 Diabetes", "🫁 Pneumonia", "🏥 Recovery Assistant", "📝 Feedback"]
+# Reset nav_page if not in updated list (handles cached sessions)
+if st.session_state.nav_page not in NAV_OPTIONS:
+    st.session_state.nav_page = "🏠 Home"
+
 
 with st.sidebar:
     st.markdown("")
@@ -398,7 +402,19 @@ if page == "🏠 Home":
 
     st.markdown("### Welcome! Choose a module to get started:")
 
-    col1, col2, col3, col4 = st.columns(4)
+    col0, col1, col2, col3, col4 = st.columns(5)
+
+    with col0:
+        st.markdown("""
+        <div class="feature-card">
+            <h1>🤖</h1>
+            <h3>Agentic AI</h3>
+            <p>Smart routing — provide any input and the AI agent auto-selects the right prediction module.</p>
+        </div>
+        """, unsafe_allow_html=True)
+        if st.button("Open →", key="nav_agent", width="stretch"):
+            st.session_state.nav_page = "🧠 Agentic AI"
+            st.rerun()
 
     with col1:
         st.markdown("""
@@ -460,6 +476,362 @@ if page == "🏠 Home":
         | **Frontend** | Streamlit |
         | **Backend** | Python inference pipeline |
         """)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 🤖 AGENTIC AI — SMART INPUT ROUTING
+# ═══════════════════════════════════════════════════════════════════════════
+elif page == "🧠 Agentic AI":
+    st.markdown("""
+    <div class="main-header">
+        <h1>🧠 Agentic AI — Smart Health Predictor</h1>
+        <p>Provide your inputs and the AI agent automatically determines the right prediction module</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown("""
+    > **How it works:** You select the type of inputs you have, enter the values,
+    > and the Agentic AI **automatically identifies** which disease prediction module to use
+    > and routes your data to the correct model.
+    """)
+
+    st.markdown("---")
+
+    # ── Select input type via dropdown ──
+    input_type = st.selectbox(
+        "Select your input type",
+        ["🖼️ Medical Image (X-Ray)", "📊 Clinical Measurements (Numerical)", "📈 Time-Series Vitals (Recovery Monitoring)"],
+    )
+
+    st.markdown("---")
+
+    # ══════════════════════════════════════════════════════════════════════
+    # ROUTE 1: IMAGE INPUT → PNEUMONIA DETECTION
+    # ══════════════════════════════════════════════════════════════════════
+    if input_type == "🖼️ Medical Image (X-Ray)":
+        st.info("🤖 **Agent Reasoning:** Image input detected → Routing to **Pneumonia Detection (CNN)** module")
+
+        uploaded = st.file_uploader("Upload a chest X-ray image", type=["jpg", "jpeg", "png"], key="agent_xray")
+
+        if uploaded:
+            from PIL import Image
+            img = Image.open(uploaded)
+
+            col_img, col_res = st.columns([1, 1])
+            with col_img:
+                st.image(img, caption="Uploaded X-Ray", width="stretch")
+
+            with col_res:
+                with st.spinner("🤖 Agent analyzing image via Pneumonia CNN..."):
+                    try:
+                        temp_path = os.path.join(BASE_DIR, "temp_agent_xray.png")
+                        img.save(temp_path)
+                        from inference.predict_pneumonia import predict_pneumonia
+                        result = predict_pneumonia(temp_path)
+                        os.remove(temp_path)
+
+                        st.markdown("### 🤖 Agent Decision")
+                        st.markdown("**Module Selected:** 🫁 Pneumonia Detection (ResNet CNN)")
+                        st.markdown("**Reason:** Input is a medical image → chest X-ray classification")
+                        st.markdown("---")
+                        st.markdown("### 📊 Prediction Results")
+                        st.metric("Prediction", result["predicted_class"])
+                        st.metric("Pneumonia Probability", f"{result['probability']:.1%}")
+                        st.markdown(f"**Risk Level:** {risk_badge(result['risk_level'])}", unsafe_allow_html=True)
+                        st.progress(min(result["probability"], 1.0))
+
+                        if result["risk_level"] == "high":
+                            st.error("⚠️ High probability of pneumonia detected.")
+                        elif result["risk_level"] == "moderate":
+                            st.warning("⚡ Moderate probability. Further examination recommended.")
+                        else:
+                            st.success("✅ X-ray appears normal.")
+                    except Exception as e:
+                        st.error(f"Model error: {e}")
+
+    # ══════════════════════════════════════════════════════════════════════
+    # ROUTE 2: CLINICAL MEASUREMENTS → CARDIO OR DIABETES
+    # ══════════════════════════════════════════════════════════════════════
+    elif input_type == "📊 Clinical Measurements (Numerical)":
+        num_inputs = st.selectbox(
+            "How many clinical features do you have?",
+            ["11 features (Basic vitals — Age, BP, Cholesterol, Lifestyle)",
+             "21 features (Comprehensive health indicators — BMI, BP, Lifestyle, Demographics)"],
+        )
+
+        st.markdown("---")
+
+        # ── 11 features → Cardiovascular ──
+        if "11 features" in num_inputs:
+            st.info("🤖 **Agent Reasoning:** 11 numerical features detected → Routing to **Cardiovascular Disease Prediction (XGBoost/LightGBM)**")
+
+            with st.form("agent_cardio_form"):
+                c1, c2, c3 = st.columns(3)
+
+                with c1:
+                    age_years = st.number_input("Age (years)", min_value=1, max_value=120, value=50)
+                    height = st.number_input("Height (cm)", min_value=100, max_value=250, value=168)
+                    ap_hi = st.number_input("Systolic BP (ap_hi)", min_value=60, max_value=250, value=120)
+                    cholesterol = st.selectbox("Cholesterol", options=[1, 2, 3],
+                                               format_func=lambda x: {1: "Normal", 2: "Above Normal", 3: "Well Above Normal"}[x])
+
+                with c2:
+                    gender = st.selectbox("Gender", options=[1, 2],
+                                           format_func=lambda x: {1: "Female", 2: "Male"}[x])
+                    weight = st.number_input("Weight (kg)", min_value=30, max_value=250, value=70)
+                    ap_lo = st.number_input("Diastolic BP (ap_lo)", min_value=30, max_value=200, value=80)
+                    gluc = st.selectbox("Glucose", options=[1, 2, 3],
+                                         format_func=lambda x: {1: "Normal", 2: "Above Normal", 3: "Well Above Normal"}[x])
+
+                with c3:
+                    smoke = st.selectbox("Smoker?", [0, 1], format_func=lambda x: "Yes" if x else "No")
+                    alco = st.selectbox("Alcohol intake?", [0, 1], format_func=lambda x: "Yes" if x else "No")
+                    active = st.selectbox("Physically active?", [1, 0], format_func=lambda x: "Yes" if x else "No")
+
+                submitted = st.form_submit_button("🤖 Let Agent Predict", width="stretch")
+
+            if submitted:
+                with st.spinner("🤖 Agent routing to Cardiovascular model..."):
+                    try:
+                        from inference.predict_cardio import predict_cardio
+                        result = predict_cardio({
+                            "age": age_years * 365,
+                            "gender": gender, "height": height, "weight": weight,
+                            "ap_hi": ap_hi, "ap_lo": ap_lo,
+                            "cholesterol": cholesterol, "gluc": gluc,
+                            "smoke": smoke, "alco": alco, "active": active,
+                        })
+
+                        st.markdown("---")
+                        st.markdown("### 🤖 Agent Decision")
+                        st.markdown("**Module Selected:** 🫀 Cardiovascular Disease Prediction")
+                        st.markdown("**Reason:** 11 clinical features (BP, cholesterol, lifestyle) → CVD risk model")
+                        st.markdown("---")
+                        st.markdown("### 📊 Prediction Results")
+                        r1, r2, r3 = st.columns(3)
+                        r1.metric("Prediction", result["predicted_class"])
+                        r2.metric("Probability", f"{result['probability']:.1%}")
+                        r3.markdown(f"**Risk Level:** {risk_badge(result['risk_level'])}", unsafe_allow_html=True)
+                        st.progress(min(result["probability"], 1.0))
+
+                        if result["risk_level"] == "high":
+                            st.error("⚠️ High cardiovascular risk detected.")
+                        elif result["risk_level"] == "moderate":
+                            st.warning("⚡ Moderate risk. Consider lifestyle changes.")
+                        else:
+                            st.success("✅ Low risk. Keep maintaining a healthy lifestyle!")
+                    except Exception as e:
+                        st.error(f"Model error: {e}")
+
+        # ── 21 features → Diabetes ──
+        else:
+            st.info("🤖 **Agent Reasoning:** 21 health indicator features detected → Routing to **Diabetes Prediction (XGBoost/LightGBM + SMOTE)**")
+
+            with st.form("agent_diabetes_form"):
+                c1, c2, c3 = st.columns(3)
+
+                with c1:
+                    HighBP = st.selectbox("High Blood Pressure?", [0, 1], format_func=lambda x: "Yes" if x else "No")
+                    HighChol = st.selectbox("High Cholesterol?", [0, 1], format_func=lambda x: "Yes" if x else "No")
+                    CholCheck = st.selectbox("Cholesterol Check (last 5y)?", [1, 0], format_func=lambda x: "Yes" if x else "No")
+                    BMI = st.number_input("BMI", min_value=10.0, max_value=80.0, value=25.0, step=0.5)
+                    Smoker = st.selectbox("Smoker?", [0, 1], format_func=lambda x: "Yes" if x else "No")
+                    Stroke = st.selectbox("Ever had a Stroke?", [0, 1], format_func=lambda x: "Yes" if x else "No")
+                    HeartDiseaseorAttack = st.selectbox("Heart Disease/Attack?", [0, 1], format_func=lambda x: "Yes" if x else "No")
+
+                with c2:
+                    PhysActivity = st.selectbox("Physical Activity (last 30d)?", [1, 0], format_func=lambda x: "Yes" if x else "No")
+                    Fruits = st.selectbox("Consume Fruits daily?", [1, 0], format_func=lambda x: "Yes" if x else "No")
+                    Veggies = st.selectbox("Consume Veggies daily?", [1, 0], format_func=lambda x: "Yes" if x else "No")
+                    HvyAlcoholConsump = st.selectbox("Heavy Alcohol?", [0, 1], format_func=lambda x: "Yes" if x else "No")
+                    AnyHealthcare = st.selectbox("Have Healthcare coverage?", [1, 0], format_func=lambda x: "Yes" if x else "No")
+                    NoDocbcCost = st.selectbox("Couldn't see doctor (cost)?", [0, 1], format_func=lambda x: "Yes" if x else "No")
+                    GenHlth = st.slider("General Health (1=Excellent, 5=Poor)", 1, 5, 3)
+
+                with c3:
+                    MentHlth = st.slider("Mental Health (bad days / 30)", 0, 30, 5)
+                    PhysHlth = st.slider("Physical Health (bad days / 30)", 0, 30, 5)
+                    DiffWalk = st.selectbox("Difficulty Walking?", [0, 1], format_func=lambda x: "Yes" if x else "No")
+                    Sex = st.selectbox("Sex", [0, 1], format_func=lambda x: {0: "Female", 1: "Male"}[x])
+                    Age = st.slider("Age Category (1-13)", 1, 13, 9,
+                                    help="1=18-24, 2=25-29, ..., 9=60-64, ..., 13=80+")
+                    Education = st.slider("Education Level (1-6)", 1, 6, 5,
+                                          help="1=Never attended, 6=College graduate")
+                    Income = st.slider("Income Level (1-8)", 1, 8, 6,
+                                       help="1=<$10k, 8=$75k+")
+
+                submitted = st.form_submit_button("🤖 Let Agent Predict", width="stretch")
+
+            if submitted:
+                with st.spinner("🤖 Agent routing to Diabetes model..."):
+                    try:
+                        from inference.predict_diabetes import predict_diabetes
+                        result = predict_diabetes({
+                            "HighBP": HighBP, "HighChol": HighChol, "CholCheck": CholCheck,
+                            "BMI": BMI, "Smoker": Smoker, "Stroke": Stroke,
+                            "HeartDiseaseorAttack": HeartDiseaseorAttack,
+                            "PhysActivity": PhysActivity, "Fruits": Fruits, "Veggies": Veggies,
+                            "HvyAlcoholConsump": HvyAlcoholConsump, "AnyHealthcare": AnyHealthcare,
+                            "NoDocbcCost": NoDocbcCost, "GenHlth": GenHlth,
+                            "MentHlth": MentHlth, "PhysHlth": PhysHlth, "DiffWalk": DiffWalk,
+                            "Sex": Sex, "Age": Age, "Education": Education, "Income": Income,
+                        })
+
+                        st.markdown("---")
+                        st.markdown("### 🤖 Agent Decision")
+                        st.markdown("**Module Selected:** 🩸 Diabetes Risk Prediction")
+                        st.markdown("**Reason:** 21 health indicators (BMI, lifestyle, demographics) → Diabetes screening model")
+                        st.markdown("---")
+                        st.markdown("### 📊 Prediction Results")
+                        r1, r2, r3 = st.columns(3)
+                        r1.metric("Prediction", result["predicted_class"])
+                        r2.metric("Confidence", f"{result['confidence']:.1%}")
+                        r3.markdown(f"**Risk Level:** {risk_badge(result['risk_level'])}", unsafe_allow_html=True)
+
+                        st.markdown("#### Class Probabilities")
+                        prob_df = pd.DataFrame({
+                            "Class": list(result["probabilities"].keys()),
+                            "Probability": list(result["probabilities"].values()),
+                        })
+                        st.bar_chart(prob_df.set_index("Class"))
+
+                        if result["risk_level"] == "high":
+                            st.error("⚠️ High diabetes risk detected.")
+                        elif result["risk_level"] == "moderate":
+                            st.warning("⚡ Moderate risk. Consider dietary changes.")
+                        else:
+                            st.success("✅ Low risk. Keep maintaining healthy habits!")
+                    except Exception as e:
+                        st.error(f"Model error: {e}")
+
+    # ══════════════════════════════════════════════════════════════════════
+    # ROUTE 3: TIME-SERIES VITALS → RECOVERY LSTM
+    # ══════════════════════════════════════════════════════════════════════
+    elif input_type == "📈 Time-Series Vitals (Recovery Monitoring)":
+        st.info("🤖 **Agent Reasoning:** Time-series vital signs detected → Routing to **Post-Surgery Recovery LSTM + AI Coach**")
+
+        with st.form("agent_recovery_profile"):
+            st.markdown("#### Patient Demographics")
+            p1, p2 = st.columns(2)
+            with p1:
+                pat_age = st.number_input("Age", 18, 100, 55)
+                pat_gender = st.selectbox("Gender", [1, 0], format_func=lambda x: "Male" if x else "Female")
+                pat_bmi = st.number_input("BMI", 15.0, 60.0, 27.0, step=0.5)
+                pat_surgery = st.selectbox("Surgery Type", ["cardiac", "orthopedic", "abdominal", "neurological"])
+            with p2:
+                pat_diabetes = st.selectbox("Diabetes?", [0, 1], format_func=lambda x: "Yes" if x else "No")
+                pat_hypertension = st.selectbox("Hypertension?", [0, 1], format_func=lambda x: "Yes" if x else "No")
+                pat_smoking = st.selectbox("Smoking?", [0, 1], format_func=lambda x: "Yes" if x else "No")
+
+            st.markdown("---")
+            st.markdown("#### 7-Day Vitals History")
+            st.markdown("Enter daily readings for the past 7 days:")
+
+            num_days = st.number_input("Number of days of data", min_value=7, max_value=30, value=7)
+            save_recovery = st.form_submit_button("💾 Save & Continue to Vitals Entry", width="stretch")
+
+        if save_recovery:
+            st.session_state.agent_recovery_patient = {
+                "age": pat_age, "gender": pat_gender, "bmi": pat_bmi,
+                "diabetes": pat_diabetes, "hypertension": pat_hypertension,
+                "smoking": pat_smoking, "surgery_type": pat_surgery,
+            }
+            st.session_state.agent_recovery_days = num_days
+
+        if "agent_recovery_patient" in st.session_state:
+            n_days = st.session_state.get("agent_recovery_days", 7)
+            st.markdown(f"#### Enter vitals for {n_days} days")
+
+            vitals_list = []
+            for day in range(n_days):
+                with st.expander(f"Day {day + 1}", expanded=(day == 0)):
+                    dc1, dc2, dc3, dc4 = st.columns(4)
+                    with dc1:
+                        pain = st.slider(f"Pain Level", 0, 10, 5, key=f"agent_pain_{day}")
+                        temp = st.number_input(f"Temperature (°C)", 35.0, 42.0, 37.0, 0.1, key=f"agent_temp_{day}")
+                    with dc2:
+                        hr = st.number_input(f"Heart Rate", 40, 200, 75, key=f"agent_hr_{day}")
+                        bp = st.number_input(f"BP Systolic", 70, 220, 120, key=f"agent_bp_{day}")
+                    with dc3:
+                        mobility = st.slider(f"Mobility (0-10)", 0, 10, 5, key=f"agent_mob_{day}")
+                        wound = st.slider(f"Wound Status (0-10)", 0, 10, 3, key=f"agent_wound_{day}")
+                    with dc4:
+                        sleep = st.number_input(f"Sleep Hours", 0.0, 24.0, 7.0, 0.5, key=f"agent_sleep_{day}")
+
+                    vitals_list.append({
+                        "pain_level": pain, "temperature": temp,
+                        "heart_rate": hr, "bp_systolic": bp,
+                        "mobility_score": mobility, "wound_status": wound,
+                        "sleep_hours": sleep,
+                    })
+
+            # API key for coach
+            with st.expander("🔑 AI Coach API Key (optional)"):
+                api_provider = st.selectbox("Provider", ["offline", "gemini", "groq", "openai"], key="agent_provider")
+                api_key = st.text_input("API Key", type="password", key="agent_api_key")
+
+            if st.button("🤖 Agent: Predict Recovery & Generate Plan", width="stretch"):
+                with st.spinner("🤖 Agent running LSTM + Generative AI Coach..."):
+                    try:
+                        from inference.predict_recovery import predict_recovery
+                        result = predict_recovery(
+                            vitals_list,
+                            st.session_state.agent_recovery_patient,
+                            api_key=api_key if api_provider != "offline" else None,
+                            provider=api_provider,
+                        )
+
+                        st.markdown("---")
+                        st.markdown("### 🤖 Agent Decision")
+                        st.markdown("**Module Selected:** 🏥 Post-Surgery Recovery (Hybrid LSTM + GenAI Coach)")
+                        st.markdown(f"**Reason:** {n_days}-day time-series vitals + patient demographics → Recovery LSTM model")
+                        st.markdown("---")
+                        st.markdown("### 📊 Recovery Prediction")
+
+                        summary = result["patient_summary"]
+                        m1, m2, m3 = st.columns(3)
+                        m1.metric("Recovery Day", summary["day"])
+                        m2.metric("Complication Risk", summary["complication_risk"])
+                        m3.markdown(f"**Risk Level:** {risk_badge(summary['risk_level'])}", unsafe_allow_html=True)
+
+                        # 3-day forecast
+                        st.markdown("#### 🔮 3-Day Recovery Forecast")
+                        forecast = summary["recovery_forecast_3day"]
+                        forecast_df = pd.DataFrame({
+                            "Day": [f"Day +{i+1}" for i in range(len(forecast))],
+                            "Predicted Recovery Score": forecast,
+                        })
+                        st.bar_chart(forecast_df.set_index("Day"))
+
+                        # AI Advice
+                        st.markdown("---")
+                        st.markdown("### 🤖 AI Recovery Coach Advice")
+                        st.markdown(result["advice"], unsafe_allow_html=True)
+
+                    except FileNotFoundError:
+                        st.error("❌ Recovery model not found. Train first with:\n"
+                                 "`python training/train_recovery_lstm.py`")
+                    except Exception as e:
+                        st.error(f"Error: {e}")
+
+    # ── Agent explanation ──
+    st.markdown("---")
+    st.markdown("### 🧠 How the Agentic AI Works")
+    st.markdown("""
+    | Input Type | # of Inputs | Agent Routes To | Model Used |
+    |-----------|-------------|-----------------|------------|
+    | 🖼️ Medical Image | 1 image file | Pneumonia Detection | ResNet-50 CNN |
+    | 📊 11 Clinical Features | 11 values | Cardiovascular Prediction | XGBoost/LightGBM |
+    | 📊 21 Health Indicators | 21 values | Diabetes Prediction | XGBoost/LightGBM + SMOTE |
+    | 📈 7+ Day Vitals | 7×7 time-series | Recovery Forecasting | Hybrid LSTM + GenAI Coach |
+    """)
+    st.markdown("""
+    The **Agentic AI** acts as an intelligent router that:
+    1. **Perceives** — Analyzes the type and number of inputs provided
+    2. **Reasons** — Determines which prediction module matches the input signature
+    3. **Acts** — Routes data to the correct model and returns the prediction
+    4. **Advises** — For recovery, generates personalized coaching via LLM
+    """)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
