@@ -322,13 +322,17 @@ with st.sidebar:
     st.markdown("")
     st.markdown("---")
     st.markdown("### Navigation")
-    page = st.radio(
+    def _nav_changed():
+        st.session_state.nav_page = st.session_state.nav_radio
+
+    st.radio(
         "Navigate",
         NAV_OPTIONS,
         index=NAV_OPTIONS.index(st.session_state.nav_page),
         label_visibility="collapsed",
+        key="nav_radio",
+        on_change=_nav_changed,
     )
-    st.session_state.nav_page = page
     st.markdown("---")
     st.markdown("")
     st.markdown("")
@@ -337,6 +341,7 @@ with st.sidebar:
     st.markdown("")
     st.markdown(f"© {datetime.now().year} · Senior Year Project")
 
+page = st.session_state.nav_page
 
 # ═══════════════════════════════════════════════════════════════════════════
 # HELPER: risk badge
@@ -559,8 +564,6 @@ elif page == "🧠 Agentic AI":
         ALL_FEATURES[m['label']] = {"key": k, "module": "cardio", "meta": m}
     for k, m in DIABETES_FEATURES_CATALOG.items():
         ALL_FEATURES[m['label']] = {"key": k, "module": "diabetes", "meta": m}
-    for k, m in RECOVERY_FEATURES_CATALOG.items():
-        ALL_FEATURES[m['label']] = {"key": k, "module": "recovery", "meta": m}
     ALL_FEATURES["Chest X-Ray Image"] = {"key": "xray_image", "module": "pneumonia", "meta": PNEUMONIA_FEATURE["xray_image"]}
 
     # ── Session state ──
@@ -578,6 +581,7 @@ elif page == "🧠 Agentic AI":
     picked = st.selectbox("Browse & search all features", options=available, index=0, key="feat_pick")
     if picked != "-- Pick a feature to add --" and picked not in st.session_state.smart_features:
         st.session_state.smart_features.append(picked)
+        del st.session_state["feat_pick"]
         st.rerun()
 
     if st.session_state.smart_features:
@@ -590,9 +594,8 @@ elif page == "🧠 Agentic AI":
     # ═══════════════════════════════════════════════════════════════
     cardio_keys   = set(CARDIO_FEATURES_CATALOG.keys())
     diabetes_keys = set(DIABETES_FEATURES_CATALOG.keys())
-    recovery_keys = set(RECOVERY_FEATURES_CATALOG.keys())
 
-    sel_cardio = set(); sel_diabetes = set(); sel_recovery = set(); has_xray = False
+    sel_cardio = set(); sel_diabetes = set(); has_xray = False
     for f in st.session_state.smart_features:
         info = ALL_FEATURES.get(f)
         if not info:
@@ -601,19 +604,15 @@ elif page == "🧠 Agentic AI":
             sel_cardio.add(info["key"])
         elif info["module"] == "diabetes":
             sel_diabetes.add(info["key"])
-        elif info["module"] == "recovery":
-            sel_recovery.add(info["key"])
         elif info["module"] == "pneumonia":
             has_xray = True
 
     cardio_pct   = len(sel_cardio)   / len(cardio_keys)   * 100
     diabetes_pct = len(sel_diabetes) / len(diabetes_keys) * 100
-    recovery_pct = len(sel_recovery) / len(recovery_keys) * 100
     pneumonia_pct = 100.0 if has_xray else 0.0
 
     miss_cardio   = cardio_keys   - sel_cardio
     miss_diabetes = diabetes_keys - sel_diabetes
-    miss_recovery = recovery_keys - sel_recovery
 
     if st.session_state.smart_features:
         # ═══════════════════════════════════════════════════════════
@@ -670,7 +669,6 @@ elif page == "🧠 Agentic AI":
             matches = {
                 "🫀 Cardiovascular": cardio_pct,
                 "🩸 Diabetes": diabetes_pct,
-                "🏥 Recovery": recovery_pct,
                 "🫁 Pneumonia": pneumonia_pct,
             }
             best_name = max(matches, key=matches.get)
@@ -742,13 +740,6 @@ elif page == "🧠 Agentic AI":
                     except Exception as e:
                         st.error(f"Model error: {e}")
 
-            # ── RECOVERY (100%) ──
-            elif recovery_pct == 100:
-                st.info("🤖 **Agent:** All recovery features detected! Please use the **🏥 Recovery Assistant** page to enter 7-day vitals history and get the full LSTM prediction + AI Coach advice.")
-                if st.button("Go to Recovery Assistant →"):
-                    st.session_state.nav_page = "🏥 Recovery Assistant"
-                    st.rerun()
-
             # ── NO MODULE COMPLETE → tell user what's missing ──
             else:
                 st.warning("🤖 **Agent:** No module has all required features yet. Here's what's missing:")
@@ -761,11 +752,6 @@ elif page == "🧠 Agentic AI":
                 if diabetes_pct > 0:
                     missing_labels = [DIABETES_FEATURES_CATALOG[k]["label"] for k in sorted(miss_diabetes)]
                     st.markdown(f"**🩸 Diabetes** ({diabetes_pct:.0f}%) — add **{len(miss_diabetes)}** more:")
-                    st.markdown(", ".join(f"`{l}`" for l in missing_labels))
-
-                if recovery_pct > 0:
-                    missing_labels = [RECOVERY_FEATURES_CATALOG[k]["label"] for k in sorted(miss_recovery)]
-                    st.markdown(f"**🏥 Recovery** ({recovery_pct:.0f}%) — add **{len(miss_recovery)}** more:")
                     st.markdown(", ".join(f"`{l}`" for l in missing_labels))
 
                 if has_xray and not uploaded_xray:
@@ -785,7 +771,6 @@ elif page == "🧠 Agentic AI":
     |--------|------------------|-------|
     | 🫀 Cardiovascular | 11 clinical features | XGBoost / LightGBM |
     | 🩸 Diabetes | 21 health indicators | XGBoost / LightGBM + SMOTE |
-    | 🏥 Recovery | 14 patient + vitals features | Hybrid LSTM + GenAI Coach |
     | 🫁 Pneumonia | 1 chest X-ray image | ResNet-50 CNN |
     """)
 
