@@ -615,32 +615,7 @@ elif page == "🧠 Agentic AI":
     miss_diabetes = diabetes_keys - sel_diabetes
     miss_recovery = recovery_keys - sel_recovery
 
-    # ═══════════════════════════════════════════════════════════════
-    # MATCH DASHBOARD
-    # ═══════════════════════════════════════════════════════════════
     if st.session_state.smart_features:
-        st.markdown("---")
-        st.markdown("#### 🤖 Agentic AI — Module Match")
-
-        mc1, mc2, mc3, mc4 = st.columns(4)
-
-        with mc1:
-            st.markdown("##### 🫀 Cardio")
-            st.progress(min(cardio_pct / 100, 1.0))
-            st.markdown(f"**{cardio_pct:.0f}%** ({len(sel_cardio)}/{len(cardio_keys)})")
-        with mc2:
-            st.markdown("##### 🩸 Diabetes")
-            st.progress(min(diabetes_pct / 100, 1.0))
-            st.markdown(f"**{diabetes_pct:.0f}%** ({len(sel_diabetes)}/{len(diabetes_keys)})")
-        with mc3:
-            st.markdown("##### 🏥 Recovery")
-            st.progress(min(recovery_pct / 100, 1.0))
-            st.markdown(f"**{recovery_pct:.0f}%** ({len(sel_recovery)}/{len(recovery_keys)})")
-        with mc4:
-            st.markdown("##### 🫁 Pneumonia")
-            st.progress(min(pneumonia_pct / 100, 1.0))
-            st.markdown(f"**{pneumonia_pct:.0f}%** ({'1/1' if has_xray else '0/1'})")
-
         # ═══════════════════════════════════════════════════════════
         # SCROLLABLE INPUT LIST — values + remove per feature
         # ═══════════════════════════════════════════════════════════
